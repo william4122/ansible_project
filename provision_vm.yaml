@@ -1,0 +1,49 @@
+---
+- name: Provision Windows VMs
+  hosts: local
+  become: yes  # Run with sudo privileges
+  vars:
+    vm_ram: 4096
+    vm_vcpus: 2
+    os_list:
+      - { name: "Windows_Server_2022", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2022_Template.qcow2" }
+      - { name: "Windows_10", os_variant: "win10", template: "/var/lib/libvirt/images/Windows_10_Template.qcow2" }
+
+  vars_prompt:
+    - name: "os_selection"
+      prompt: "Select an operating system to provision (1 for Windows_Server_2022, 2 for Windows_10):"
+      private: no
+
+  tasks:
+    - name: Set the selected OS based on user input
+      set_fact:
+        selected_os: "{{ os_list[os_selection | int - 1] }}"
+      when: os_selection | int >= 1 and os_selection | int <= os_list | length
+
+    - name: Fail if an invalid selection was made
+      fail:
+        msg: "Invalid selection. Please run the playbook again and choose a valid option."
+      when: selected_os is not defined
+
+    - name: Verify the template exists
+      stat:
+        path: "{{ selected_os.template }}"
+      register: template_file
+
+    - name: Fail if the template is not found
+      fail:
+        msg: "Template {{ selected_os.template }} not found."
+      when: not template_file.stat.exists
+
+    - name: Create a new VM disk image
+      command: >
+        qemu-img create -f qcow2 -b {{ selected_os.template }} -F qcow2
+        /var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}.qcow2
+
+    - name: Provision the VM
+      command: >
+        virt-install --name {{ ansible_date_time.iso8601 }}_{{ selected_os.name }}
+        --ram {{ vm_ram }} --vcpus {{ vm_vcpus }}
+        --disk path=/var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}.qcow2,format=qcow2
+        --os-variant {{ selected_os.os_variant }} --network network=default
+        --graphics spice --import --noautoconsole
