@@ -1,5 +1,5 @@
 ---
-- name: Provision VMs
+- name: Provision Windows VMs
   hosts: local
   become: yes  # Run with sudo privileges
   vars:
@@ -12,6 +12,9 @@
   vars_prompt:
     - name: "os_selection"
       prompt: "Select an operating system to provision (1 for Windows_Server_2022, 2 for Windows_10):"
+      private: no
+    - name: "num_instances"
+      prompt: "Enter the number of instances to provision:"
       private: no
 
   tasks:
@@ -35,15 +38,17 @@
         msg: "Template {{ selected_os.template }} not found."
       when: not template_file.stat.exists
 
-    - name: Create a new VM disk image
+    - name: Create multiple VM disk images
+      loop: "{{ range(1, num_instances | int + 1) | list }}"
       command: >
         qemu-img create -f qcow2 -b {{ selected_os.template }} -F qcow2
-        /var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}.qcow2
+        /var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}_{{ item }}.qcow2
 
-    - name: Provision the VM
+    - name: Provision the VMs
+      loop: "{{ range(1, num_instances | int + 1) | list }}"
       command: >
-        virt-install --name {{ ansible_date_time.iso8601 }}_{{ selected_os.name }}
+        virt-install --name {{ ansible_date_time.iso8601 }}_{{ selected_os.name }}_{{ item }}
         --ram {{ vm_ram }} --vcpus {{ vm_vcpus }}
-        --disk path=/var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}.qcow2,format=qcow2
+        --disk path=/var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ selected_os.name }}_{{ item }}.qcow2,format=qcow2
         --os-variant {{ selected_os.os_variant }} --network network=default
         --graphics spice --import --noautoconsole
