@@ -1,0 +1,44 @@
+---
+- name: Provision VMs in VirtualBox
+  hosts: localhost
+  become: yes  # Run with sudo privileges
+  vars:
+    vm_ram: 4096  # Specify the RAM for the VMs
+    vm_vcpus: 2   # Specify the number of vCPUs
+    os_list:
+      - { name: "Windows_Server_2022", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2022_Template.vdi" }
+      - { name: "Windows_10", os_variant: "win10", template: "/var/lib/libvirt/images/Windows_10_Template.vdi" }
+
+  vars_prompt:
+    - name: "os_selection"
+      prompt: "Select an operating system to provision (1 for Windows_Server_2022, 2 for Windows_10):"
+      private: no
+    - name: "num_instances"
+      prompt: "Enter the number of instances to provision:"
+      private: no
+
+  tasks:
+    - name: Set the selected OS based on user input
+      set_fact:
+        selected_os: "{{ os_list[os_selection | int - 1] }}"
+      when: os_selection | int >= 1 and os_selection | int <= os_list | length
+
+    - name: Fail if an invalid selection was made
+      fail:
+        msg: "Invalid selection. Please run the playbook again and choose a valid option."
+      when: selected_os is not defined
+
+    - name: Create multiple instances of the VM
+      loop: "{{ range(1, num_instances | int + 1) | list }}"
+      command: >
+        VBoxManage clonevm "{{ selected_os.template }}" --name "{{ selected_os.name }}_instance_{{ item }}" --register
+
+    - name: Set VM configurations (memory and CPU)
+      loop: "{{ range(1, num_instances | int + 1) | list }}"
+      command: >
+        VBoxManage modifyvm "{{ selected_os.name }}_instance_{{ item }}" --memory {{ vm_ram }} --cpus {{ vm_vcpus }}
+
+    - name: Start the VMs
+      loop: "{{ range(1, num_instances | int + 1) | list }}"
+      command: >
+        VBoxManage startvm "{{ selected_os.name }}_instance_{{ item }}" --type headless

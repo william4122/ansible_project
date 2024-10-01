@@ -1,5 +1,5 @@
 ---
-- name: Provision Windows VMs
+- name: Provision VMs
   hosts: local
   become: yes  # Run with sudo privileges
   vars:

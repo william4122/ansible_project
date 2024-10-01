@@ -1,0 +1,26 @@
+---
+- name: Provision VMs for each OS type
+  hosts: localhost
+  become: yes  # Run with sudo privileges
+  vars:
+    vm_ram: 4096  # Specify the RAM for the VMs
+    vm_vcpus: 2   # Specify the number of vCPUs
+    os_list:
+      - { name: "Windows_Server_2022", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2022_Template.qcow2" }
+      - { name: "Windows_10", os_variant: "win10", template: "/var/lib/libvirt/images/Windows_10_Template.qcow2" }
+
+  tasks:
+    - name: Create disk images for each OS
+      loop: "{{ os_list }}"
+      command: >
+        qemu-img create -f qcow2 -b {{ item.template }} -F qcow2
+        /var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ item.name }}.qcow2
+
+    - name: Provision the VMs
+      loop: "{{ os_list }}"
+      command: >
+        virt-install --name {{ ansible_date_time.iso8601 }}_{{ item.name }}
+        --ram {{ vm_ram }} --vcpus {{ vm_vcpus }}
+        --disk path=/var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ item.name }}.qcow2,format=qcow2
+        --os-variant {{ item.os_variant }} --network network=default
+        --graphics spice --import --noautoconsole
