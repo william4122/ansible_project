@@ -5,6 +5,7 @@ Step 1:
 Requires you to have a Linux VM setup 
 
 With virt-manager possibly :p
+yes. QEMU is way easier than VirtualBox for automation. Windows will need powershell. 
 
 Setting up our project directory on the Linux VM
 
@@ -37,5 +38,11 @@ localhost ansible_connection=local
 ansible-playbook -i inventory.ini provision_vm.yaml
 which is really just 
 ansible-playbook -i <inventory file name> <playbook file name>
+
+Couple of playbook options:
+
+provision_fleet.yaml -> provisions one instance of each of the vms in the templates
+provision_vm.yaml -> provisions x instances of one vm from the templates
+cleanup.yaml -> cleansup after us (tbd)
 
 5. VMs provisioned! 

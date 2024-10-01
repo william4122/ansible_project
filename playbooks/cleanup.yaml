@@ -1,0 +1,72 @@
+---
+- name: Cleanup non-template VMs and associated files
+  hosts: localhost
+  become: yes
+  vars:
+    template_list:
+      - "Windows_Server_2022_Template"
+      - "Windows_10_Template"
+    vm_image_path: "/var/lib/libvirt/images"
+
+  tasks:
+    - name: Get the list of all VMs
+      command: virsh list --all --name
+      register: all_vms
+
+    - name: Filter out template VMs
+      set_fact:
+        non_template_vms: "{{ all_vms.stdout_lines | difference(template_list) }}"
+
+    - name: Ensure non-template VMs exist before proceeding
+      debug:
+        msg: "No non-template VMs found."
+      when: non_template_vms | length == 0
+
+    - name: Shutdown non-template VMs gracefully if running
+      loop: "{{ non_template_vms }}"
+      command: virsh shutdown "{{ item }}"
+      ignore_errors: yes
+      register: shutdown_results
+
+    - name: Force shutdown VMs that failed to shut down gracefully
+      loop: "{{ shutdown_results.results }}"
+      command: virsh destroy "{{ item.item }}"
+      when: item.rc != 0  # Force shutdown only if the shutdown failed
+      ignore_errors: yes
+
+    - name: Check if the VM is transient or persistent
+      loop: "{{ non_template_vms }}"
+      command: virsh dominfo "{{ item }}"
+      register: vm_info
+
+    - name: Convert transient domains to persistent
+      loop: "{{ vm_info.results }}"
+      command: virsh save "{{ item.item }}" /tmp/"{{ item.item }}".save && virsh restore /tmp/"{{ item.item }}".save
+      when: '"transient: yes" in item.stdout'
+      ignore_errors: yes
+
+    - name: Undefine (delete) the non-template VMs
+      loop: "{{ non_template_vms }}"
+      command: virsh undefine "{{ item }}"
+      ignore_errors: yes
+
+    - name: Find associated disk files for non-template VMs
+      find:
+        paths: "{{ vm_image_path }}"
+        patterns: "{{ item }}*.qcow2"
+        recurse: yes
+      loop: "{{ non_template_vms }}"
+      register: disk_files
+
+    - name: Delete associated disk files
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ disk_files.results | selectattr('matched', 'eq', 1) | map(attribute='files') | flatten }}"
+      when: disk_files is defined and disk_files.results | length > 0
+
+    - name: Confirm the cleanup is complete
+      debug:
+        msg: "Cleanup completed. Removed non-template VMs: {{ non_template_vms }}"
+      when: non_template_vms | length > 0
+
