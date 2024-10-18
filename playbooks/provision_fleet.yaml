@@ -6,9 +6,12 @@
     vm_ram: 4096  # Specify the RAM for the VMs
     vm_vcpus: 2   # Specify the number of vCPUs
     os_list:
+      os_list:
       - { name: "Windows_Server_2022", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2022_Template.qcow2" }
+      - { name: "Windows_Server_2019", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2019_Template.qcow2" }
+      - { name: "Windows_Server_2016", os_variant: "win2k16", template: "/var/lib/libvirt/images/Windows_Server_2016_Template.qcow2" }
+      - { name: "Windows_Server_2012R2", os_variant: "win2k12r2", template: "/var/lib/libvirt/images/Windows_Server_2012R2_Template.qcow2" }
       - { name: "Windows_10", os_variant: "win10", template: "/var/lib/libvirt/images/Windows_10_Template.qcow2" }
-
   tasks:
     - name: Create disk images for each OS
       loop: "{{ os_list }}"
