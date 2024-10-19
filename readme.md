@@ -1,4 +1,4 @@
-#Automating virtual machine creation with ansible
+# Automating virtual machine creation with ansible
 
 Step 1:
 
@@ -6,18 +6,6 @@ Requires you to have a Linux VM setup
 
 With virt-manager possibly :p
 yes. QEMU is way easier than VirtualBox for automation. Windows will need powershell. 
-
-Setting up our project directory on the Linux VM
-
-Idea
-
-ansible-project/
-│
-├── inventory.ini               # Inventory file
-│
-├── provision_vm.yaml            # Ansible playbook for provisioning VMs
-│
-└── README.md                   # Documentation for your Ansible project
 
 1. Making this project directory from the cmdline
 mkdir ansible_project
