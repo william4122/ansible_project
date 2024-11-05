@@ -1,29 +1,43 @@
 ---
 - name: Provision VMs for each OS type
   hosts: localhost
-  become: yes  # Run with sudo privileges
+  become: yes
   vars:
-    vm_ram: 4096  # Specify the RAM for the VMs
-    vm_vcpus: 2   # Specify the number of vCPUs
+    vm_ram: 4096
+    vm_vcpus: 2
     os_list:
       - { name: "Windows_Server_2022", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2022_Template.qcow2" }
       - { name: "Windows_Server_2019", os_variant: "win2k19", template: "/var/lib/libvirt/images/Windows_Server_2019_Template.qcow2" }
       - { name: "Windows_Server_2016", os_variant: "win2k16", template: "/var/lib/libvirt/images/Windows_Server_2016_Template.qcow2" }
       - { name: "Windows_Server_2012R2", os_variant: "win2k12r2", template: "/var/lib/libvirt/images/Windows_Server_2012R2_Template.qcow2" }
       - { name: "Windows_10", os_variant: "win10", template: "/var/lib/libvirt/images/Windows_10_Template.qcow2" }
-  tasks:
-    - name: Create disk images for each OS
-      loop: "{{ os_list }}"
-      command: >
-        qemu-img create -f qcow2 -b {{ item.template }} -F qcow2
-        /var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ item.name }}.qcow2
 
-    - name: Provision the VMs
+  tasks:
+
+    - name: Check if template files exist
+      stat:
+        path: "{{ item.template }}"
       loop: "{{ os_list }}"
+      register: template_files
+
+    - name: Fail if any template files are missing
+      fail:
+        msg: "Template file for {{ item.item.name }} is missing at {{ item.item.template }}"
+      when: not item.stat.exists
+      loop: "{{ template_files.results }}"
+    
+    - name: Create disk images for each OS with a unique suffix
       command: >
-        virt-install --name {{ ansible_date_time.iso8601 }}_{{ item.name }}
+        qemu-img create -f qcow2 -b {{ item.template }}
+        /var/lib/libvirt/images/{{ item.name }}_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.qcow2
+      loop: "{{ os_list }}"
+      register: created_images
+
+    - name: Provision the VMs with unique names
+      command: >
+        virt-install --name {{ item.name }}_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}
         --ram {{ vm_ram }} --vcpus {{ vm_vcpus }}
-        --disk path=/var/lib/libvirt/images/{{ ansible_date_time.iso8601 }}_{{ item.name }}.qcow2,format=qcow2
+        --disk path=/var/lib/libvirt/images/{{ item.name }}_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.qcow2,format=qcow2
         --os-variant {{ item.os_variant }} --network network=default
         --graphics spice --import --noautoconsole
-
+      loop: "{{ os_list }}"
